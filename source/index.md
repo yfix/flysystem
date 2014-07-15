@@ -60,7 +60,7 @@ $filesystem->write('path/to/file.txt', 'contents');
 $filesystem->update('file/to/update.ext', 'new contents');
 
 // Or delete a file
-$filesyste->delete('delete/this/file.md');
+$filesystem->delete('delete/this/file.md');
 ~~~
 
 These are just a couple of every day commands you'll run on any given filesystems.
