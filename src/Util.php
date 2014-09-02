@@ -71,30 +71,48 @@ class Util
     /**
      * Normalize path
      *
-     * @param   string  $path
-     * @param   string  $separator
-     * @return  string  normalized path
+     * @param string $path
+     *
+     * @return string
+     * @throws LogicException
      */
-    public static function normalizePath($path, $separator = '\\/')
+    public static function normalizePath($path)
     {
         // Remove any kind of funky unicode whitespace
         $normalized = preg_replace('#\p{C}+|^\./#u', '', $path);
 
-        // Path remove self referring paths ("/./").
-        $normalized = preg_replace('#/\.(?=/)|^\./|\./$#', '', $normalized);
-
-        // Regex for resolving relative paths
-        $regex = '#/*[^/\.]+/\.\.#Uu';
-
-        while (preg_match($regex, $normalized)) {
-            $normalized = preg_replace($regex, '', $normalized);
-        }
+        $normalized = static::normalizeRelativePath($normalized);
 
         if (preg_match('#/\.{2}|\.{2}/#', $normalized)) {
             throw new LogicException('Path is outside of the defined root, path: [' . $path . '], resolved: [' . $normalized . ']');
         }
 
-        return trim($normalized, $separator);
+        // Replace any double directory separators
+        $normalized = preg_replace('#\\\{2,}#', '\\', trim($normalized, '\\'));
+        $normalized = preg_replace('#/{2,}#', '/', trim($normalized, '/'));
+
+        return $normalized;
+    }
+
+    /**
+     * Normalize relative directories in a path
+     *
+     * @param $path
+     * @return string
+     */
+    public static function normalizeRelativePath($path)
+    {
+        // Path remove self referring paths ("/./").
+        $path = preg_replace('#/\.(?=/)|^\./|\./$#', '', $path);
+
+        // Regex for resolving relative paths
+        $regex = '#/*[^/\.]+/\.\.#Uu';
+
+        while (preg_match($regex, $path)) {
+            $path = preg_replace($regex, '', $path);
+        }
+
+        return $path;
     }
 
     /**
