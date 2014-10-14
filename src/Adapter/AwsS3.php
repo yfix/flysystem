@@ -89,6 +89,16 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
+     * Get the S3Client bucket
+     *
+     * @return  string
+     */
+    public function getBucket()
+    {
+        return $this->bucket;
+    }
+
+    /**
      * Get the S3Client instance
      *
      * @return  S3Client
@@ -164,7 +174,7 @@ class AwsS3 extends AbstractAdapter
     {
         $multipartLimit = $this->mbToBytes($options['Multipart']);
 
-        // If we don't know the streamsize, we have to assume we need to upload using multipart, otherwise it might fail.
+        // If we don't know the stream size, we have to assume we need to upload using multipart, otherwise it might fail.
         if ($options['ContentLength'] > $multipartLimit) {
             $result = $this->putObjectMultipart($options);
         } else {
