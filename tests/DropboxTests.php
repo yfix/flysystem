@@ -1,6 +1,7 @@
 <?php
 
 use League\Flysystem\Adapter\Dropbox;
+use League\Flysystem\Config;
 
 class DropboxTests extends PHPUnit_Framework_TestCase
 {
@@ -21,9 +22,9 @@ class DropboxTests extends PHPUnit_Framework_TestCase
     {
         $mock = $this->getClientMock();
 
-        return array(
-            array(new Dropbox($mock, 'prefix'), $mock),
-        );
+        return [
+            [new Dropbox($mock, 'prefix'), $mock],
+        ];
     }
 
     /**
@@ -31,78 +32,78 @@ class DropboxTests extends PHPUnit_Framework_TestCase
      */
     public function testWrite($adapter, $mock)
     {
-        $mock->shouldReceive('uploadFileFromString')->andReturn(array(
+        $mock->shouldReceive('uploadFileFromString')->andReturn([
             'is_dir' => false,
             'modified' => '10 September 2000',
-        ), false);
+        ], false);
 
-        $result = $adapter->write('something', 'contents');
+        $result = $adapter->write('something', 'contents', new Config());
         $this->assertInternalType('array', $result);
         $this->assertArrayHasKey('type', $result);
         $this->assertEquals('file', $result['type']);
-        $this->assertFalse($adapter->write('something', 'something'));
+        $this->assertFalse($adapter->write('something', 'something', new Config()));
     }
 
     /**
      * @dataProvider  dropboxProvider
      */
-    public function testUpdate($adapter, $mock)
+    public function testUpdate(Dropbox $adapter, $mock)
     {
-        $mock->shouldReceive('uploadFileFromString')->andReturn(array(
+        $mock->shouldReceive('uploadFileFromString')->andReturn([
             'is_dir' => false,
             'modified' => '10 September 2000',
-        ), false);
+        ], false);
 
-        $result = $adapter->update('something', 'contents');
+        $result = $adapter->update('something', 'contents', new Config());
         $this->assertInternalType('array', $result);
         $this->assertArrayHasKey('type', $result);
         $this->assertEquals('file', $result['type']);
-        $this->assertFalse($adapter->update('something', 'something'));
+        $this->assertFalse($adapter->update('something', 'something', new Config()));
     }
 
     /**
      * @dataProvider  dropboxProvider
      */
-    public function testWriteStream($adapter, $mock)
+    public function testWriteStream(Dropbox $adapter, $mock)
     {
-        $mock->shouldReceive('uploadFile')->andReturn(array(
+        $mock->shouldReceive('uploadFile')->andReturn([
             'is_dir' => false,
             'modified' => '10 September 2000',
-        ), false);
+        ], false);
 
-        $result = $adapter->writeStream('something', 'contents');
+        $result = $adapter->writeStream('something', 'contents', new Config());
         $this->assertInternalType('array', $result);
         $this->assertArrayHasKey('type', $result);
         $this->assertEquals('file', $result['type']);
-        $this->assertFalse($adapter->writeStream('something', 'something'));
+        $this->assertFalse($adapter->writeStream('something', 'something', new Config()));
     }
 
-     /**
+    /**
      * @dataProvider  dropboxProvider
      */
-    public function testUpdateStream($adapter, $mock)
+    public function testUpdateStream(Dropbox $adapter, $mock)
     {
-        $mock->shouldReceive('uploadFile')->andReturn(array(
+        $mock->shouldReceive('uploadFile')->andReturn([
             'is_dir' => false,
             'modified' => '10 September 2000',
-        ), false);
+        ], false);
 
-        $result = $adapter->updateStream('something', 'contents');
+        $result = $adapter->updateStream('something', 'contents', new Config());
         $this->assertInternalType('array', $result);
         $this->assertArrayHasKey('type', $result);
         $this->assertEquals('file', $result['type']);
-        $this->assertFalse($adapter->updateStream('something', 'something'));
+        $this->assertFalse($adapter->updateStream('something', 'something', new Config()));
     }
 
     public function metadataProvider()
     {
-        return array(
-            array('getMetadata'),
-            array('getMimetype'),
-            array('getTimestamp'),
-            array('getSize'),
-            array('has'),
-        );
+        return [
+            ['getMetadata'],
+            ['getMimetype'],
+            ['getTimestamp'],
+            ['getSize'],
+            ['has'],
+        ];
     }
 
     /**
@@ -111,10 +112,10 @@ class DropboxTests extends PHPUnit_Framework_TestCase
     public function testMetadataCalls($method)
     {
         $mock = $this->getClientMock();
-        $mock->shouldReceive('getMetadata')->twice()->andReturn(array(
+        $mock->shouldReceive('getMetadata')->twice()->andReturn([
             'is_dir' => false,
             'modified' => '10 September 2000',
-        ), false);
+        ], false);
 
         $adapter = new Dropbox($mock);
         $this->assertInternalType('array', $adapter->{$method}('one', 'two'));
@@ -137,7 +138,7 @@ class DropboxTests extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider  dropboxProvider
      */
-    public function testReadStream($adapter, $mock)
+    public function testReadStream(Dropbox $adapter, $mock)
     {
         $stream = tmpfile();
         fwrite($stream, 'something');
@@ -150,7 +151,7 @@ class DropboxTests extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider  dropboxProvider
      */
-    public function testDelete($adapter, $mock)
+    public function testDelete(Dropbox $adapter, $mock)
     {
         $mock->shouldReceive('delete')->andReturn(true);
         $this->assertTrue($adapter->delete('something'));
@@ -160,36 +161,36 @@ class DropboxTests extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider  dropboxProvider
      */
-    public function testCreateDir($adapter, $mock)
+    public function testCreateDir(Dropbox $adapter, $mock)
     {
         $mock->shouldReceive('createFolder')->with('/prefix/fail/please')->andReturn(null);
-        $mock->shouldReceive('createFolder')->with('/prefix/pass/please')->andReturn(array(
+        $mock->shouldReceive('createFolder')->with('/prefix/pass/please')->andReturn([
             'is_dir' => true,
             'path' => 'pass/please',
-        ));
-        $this->assertFalse($adapter->createDir('fail/please'));
+        ]);
+        $this->assertFalse($adapter->createDir('fail/please', new Config()));
         $expected = ['path' => 'pass/please', 'type' => 'dir'];
-        $this->assertEquals($expected, $adapter->createDir('pass/please'));
+        $this->assertEquals($expected, $adapter->createDir('pass/please', new Config()));
     }
 
     /**
      * @dataProvider  dropboxProvider
      */
-    public function testListContents($adapter, $mock)
+    public function testListContents(Dropbox $adapter, $mock)
     {
         $mock->shouldReceive('getMetadataWithChildren')->andReturn(
-            array('contents' => array(
-                array('is_dir' => true, 'path' => 'dirname'),
-            )),
-            array('contents' => array(
-                array('is_dir' => false, 'path' => 'dirname/file'),
-            )),
+            ['contents' => [
+                ['is_dir' => true, 'path' => 'dirname'],
+            ]],
+            ['contents' => [
+                ['is_dir' => false, 'path' => 'dirname/file'],
+            ]],
             false
         );
 
         $result = $adapter->listContents('', true);
         $this->assertCount(2, $result);
-        $this->assertEquals(array(), $adapter->listContents('', false));
+        $this->assertEquals([], $adapter->listContents('', false));
     }
 
     /**
@@ -197,8 +198,8 @@ class DropboxTests extends PHPUnit_Framework_TestCase
      */
     public function testRename($adapter, $mock)
     {
-        $mock->shouldReceive('move')->andReturn(array('is_dir' => false, 'path' => 'something'));
-        $this->assertInternalType('array', $adapter->rename('something', 'something'));
+        $mock->shouldReceive('move')->andReturn(['is_dir' => false, 'path' => 'something']);
+        $this->assertTrue($adapter->rename('something', 'something'));
     }
 
     /**
@@ -218,8 +219,8 @@ class DropboxTests extends PHPUnit_Framework_TestCase
      */
     public function testCopy($adapter, $mock)
     {
-        $mock->shouldReceive('copy')->andReturn(array('is_dir' => false, 'path' => 'something'));
-        $this->assertInternalType('array', $adapter->copy('something', 'something'));
+        $mock->shouldReceive('copy')->andReturn(['is_dir' => false, 'path' => 'something']);
+        $this->assertTrue($adapter->copy('something', 'something'));
     }
 
     /**

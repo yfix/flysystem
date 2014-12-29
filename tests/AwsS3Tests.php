@@ -1,8 +1,10 @@
 <?php
 
-use League\Flysystem\Adapter\AwsS3 as Adapter;
 use Aws\S3\Enum\Group;
 use Aws\S3\Enum\Permission;
+use Guzzle\Service\Resource\Model;
+use League\Flysystem\Adapter\AwsS3 as Adapter;
+use League\Flysystem\Config;
 
 class StreamMock
 {
@@ -20,11 +22,11 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $signature = $this->getMock('Aws\Common\Signature\SignatureInterface');
         $client = $this->getMock('Guzzle\Common\Collection');
 
-        return Mockery::mock('Aws\S3\S3Client[putObject,copyObject,getAll,deleteObject,deleteMatchingObjects,getIterator,putObjectAcl,getAll,getObjectAcl,doesObjectExist,GetObject,registerStreamWrapper]', array(
+        return Mockery::mock('Aws\S3\S3Client[putObject,copyObject,getAll,deleteObject,deleteMatchingObjects,getIterator,putObjectAcl,getAll,getObjectAcl,doesObjectExist,GetObject,registerStreamWrapper]', [
             $credentials,
             $signature,
             $client,
-        ));
+        ]);
     }
 
     protected function getUploadBuilder()
@@ -66,8 +68,9 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mock = $this->getS3Client();
         $mock->shouldReceive('putObject')->times(2);
         $adapter = new Adapter($mock, 'bucketname', 'prefix');
-        $adapter->update('something', 'something');
-        $adapter->write('something', 'something', 'private');
+        $this->expectVisibilityCall(Permission::READ, 'something', $mock);
+        $adapter->update('something', 'something', new Config());
+        $adapter->write('something', 'something', new Config(['visibility' => 'private']));
     }
 
     public function testWriteAboveLimit()
@@ -84,19 +87,19 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mockUploadBuilder->shouldReceive('setSource')->once()->andReturn($mockUploadBuilder);
         $mockUploadBuilder->shouldReceive('build')->once()->andReturn($mockTransfer);
 
-        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', array(
-            'Multipart' => 0
-        ), $mockUploadBuilder);
+        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', [
+            'Multipart' => 0,
+        ], $mockUploadBuilder);
 
         $adapter->write(
             'something',
             'some content',
-            array(
+            new Config([
                 'visibility' => 'private',
                 'mimetype'   => 'text/plain',
                 'Expires'    => 'it does',
-                'Metadata' => array(),
-            )
+                'Metadata' => [],
+            ])
         );
     }
 
@@ -114,22 +117,23 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mockUploadBuilder->shouldReceive('setSource')->times(2)->andReturn($mockUploadBuilder);
         $mockUploadBuilder->shouldReceive('build')->times(2)->andReturn($mockTransfer);
 
-        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', array(
-            'Multipart' => 0
-        ), $mockUploadBuilder);
+        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', [
+            'Multipart' => 0,
+        ], $mockUploadBuilder);
         $temp    = tmpfile();
         fwrite($temp, "some content");
         $adapter->writeStream(
             'something',
             $temp,
-            array(
+            new Config([
                 'visibility' => 'private',
                 'mimetype'   => 'text/plain',
                 'Expires'    => 'it does',
-                'Metadata' => array(),
-            )
+                'Metadata' => [],
+            ])
         );
-        $adapter->updateStream('something', $temp);
+        $this->expectVisibilityCall(Permission::READ, '/prefix/something', $mockS3Client);
+        $this->assertInternalType('array', $adapter->updateStream('something', $temp, new Config()));
         fclose($temp);
     }
 
@@ -137,7 +141,6 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
     {
         if (defined('HHVM_VERSION')) {
             $this->markTestSkipped('HHVM has a bug breaking mockery');
-            return;
         }
 
         $mockS3Client = $this->getS3Client();
@@ -153,18 +156,18 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mockUploadBuilder->shouldReceive('setSource')->once()->andReturn($mockUploadBuilder);
         $mockUploadBuilder->shouldReceive('build')->once()->andReturn($mockTransfer);
 
-        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', array('Multipart' => 0), $mockUploadBuilder);
+        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', ['Multipart' => 0], $mockUploadBuilder);
         $temp    = tmpfile();
         fwrite($temp, "some content");
         $adapter->writeStream(
             'something',
             $temp,
-            array(
+            new Config([
                 'visibility' => 'private',
                 'mimetype'   => 'text/plain',
                 'Expires'    => 'it does',
-                'Metadata' => array(),
-            )
+                'Metadata' => [],
+            ])
         );
         fclose($temp);
     }
@@ -174,23 +177,24 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mockS3Client = $this->getS3Client();
         $mockS3Client->shouldReceive('putObject')->times(2);
 
-        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', array(
+        $adapter = new Adapter($mockS3Client, 'bucketname', 'prefix', [
             'Multipart' => 10 * 1024 * 1024,
-        ));
+        ]);
 
         $temp    = tmpfile();
         fwrite($temp, $content = "some content");
         $adapter->writeStream(
             'something',
             $temp,
-            $options = array(
+            $config = new Config([
                 'visibility' => 'private',
                 'mimetype'   => 'text/plain',
                 'Expires'    => 'it does',
                 'streamsize' => 5,
-            )
+            ])
         );
-        $adapter->updateStream('something', $temp, $options);
+
+        $adapter->updateStream('something', $temp, $config);
         fclose($temp);
     }
 
@@ -199,8 +203,9 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $stream = tmpfile();
         $mock = $this->getS3Client();
         $mock->shouldReceive('getObject')->once()->andReturn(Mockery::self());
-        $mock->shouldReceive('getAll')->once()->andReturn(array('ContentLength' => 10, 'ContentType' => 'text/plain', 'Body' => $mock, 'Key' => 'file.ext'));
+        $mock->shouldReceive('getAll')->once()->andReturn(['ContentLength' => 10, 'ContentType' => 'text/plain', 'Body' => $mock, 'Key' => 'file.ext']);
         $mock->shouldReceive('getStream')->andReturn($stream);
+        $mock->shouldReceive('detachStream');
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->readStream('file.ext');
         $this->assertInternalType('resource', $result['stream']);
@@ -210,26 +215,25 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
     public function testRename()
     {
         $mock = $this->getS3Client();
+        $this->expectVisibilityCall(Permission::READ, 'old', $mock);
         $mock->shouldReceive('copyObject')->once()->andReturn(Mockery::self());
-        $mock->shouldReceive('getAll')->once()->andReturn(array('Key' => 'something', 'LastModified' => '2011-01-01'));
-        $mock->shouldReceive('deleteObject')->once()->andReturn(true);
+        $response = Mockery::mock('Guzzle\Service\Resource\Model');
+        $response->shouldReceive('get')->with('DeleteMarker')->andReturn(true);
+        $mock->shouldReceive('deleteObject')->once()->andReturn($response);
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->rename('old', 'new');
-        $this->assertArrayHasKey('path', $result);
-        $this->assertContains('new', $result);
-        $this->assertInternalType('int', $result['timestamp']);
+        $this->assertTrue($result);
     }
 
     public function testCopy()
     {
         $mock = $this->getS3Client();
+        $this->expectVisibilityCall(Permission::READ, 'old', $mock);
         $mock->shouldReceive('copyObject')->once()->andReturn(Mockery::self());
-        $mock->shouldReceive('getAll')->once()->andReturn(array('Key' => 'something', 'LastModified' => '2011-01-01'));
+        $mock->shouldReceive('getAll')->once()->andReturn(['Key' => 'something', 'LastModified' => '2011-01-01']);
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->copy('old', 'new');
-        $this->assertArrayHasKey('path', $result);
-        $this->assertContains('new', $result);
-        $this->assertInternalType('int', $result['timestamp']);
+        $this->assertTrue($result);
     }
 
     public function testDeleteDir()
@@ -244,10 +248,10 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
     public function testListContents()
     {
         $mock = $this->getS3Client();
-        $result = new \ArrayIterator(array(
-            array('Key' => 'file.ext', 'ContentLength' => 20, 'ContentType' => 'text/plain'),
-            array('Key' => 'path/to_another/dir/'),
-        ));
+        $result = new \ArrayIterator([
+            ['Key' => 'file.ext', 'ContentLength' => 20, 'ContentType' => 'text/plain'],
+            ['Key' => 'path/to_another/dir/', 'LastModified' => '2011-01-01'],
+        ]);
         $mock->shouldReceive('getIterator')->once()->andReturn($result);
         $adapter = new Adapter($mock, 'bucketname');
         $listing = $adapter->listContents();
@@ -260,7 +264,6 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $this->assertArrayHasKey('path', $first);
         $this->assertArrayHasKey('type', $first);
         $this->assertEquals($last['type'], 'dir');
-
     }
 
     public function testSetVisibility()
@@ -269,16 +272,16 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mock->shouldReceive('putObjectAcl')->once();
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->setVisibility('object.ext', 'public');
-        $this->assertEquals(array('visibility' => 'public'), $result);
+        $this->assertEquals(['visibility' => 'public'], $result);
     }
 
     public function visibilityProvider()
     {
-        return array(
-            array(Permission::READ, Group::ALL_USERS, 'public'),
-            array('other', Group::ALL_USERS, 'private'),
-            array('other', 'invalid', 'private'),
-        );
+        return [
+            [Permission::READ, Group::ALL_USERS, 'public'],
+            ['other', Group::ALL_USERS, 'private'],
+            ['other', 'invalid', 'private'],
+        ];
     }
 
     /**
@@ -287,11 +290,8 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
     public function testGetVisibility($permission, $uri, $expected)
     {
         $mock = $this->getS3Client();
-        $mock->shouldReceive('getObjectAcl')->once()->andReturn(Mockery::self());
-        $grant = array('Permission' => $permission, 'Grantee' => array('URI' => $uri));
-        $grants = array('Grants' => array($grant));
-        $mock->shouldReceive('getAll')->once()->andReturn($grants);
-        $expected = array('visibility' => $expected);
+        $this->expectVisibilityCall($permission, $uri, $mock);
+        $expected = ['visibility' => $expected];
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->getVisibility('object.ext');
         $this->assertEquals($expected, $result);
@@ -299,12 +299,12 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
 
     public function methodProvider()
     {
-        return array(
-            array('getMetadata'),
-            array('getTimestamp'),
-            array('getMimetype'),
-            array('getSize'),
-        );
+        return [
+            ['getMetadata'],
+            ['getTimestamp'],
+            ['getMimetype'],
+            ['getSize'],
+        ];
     }
 
     /**
@@ -314,7 +314,7 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
     {
         $mock = $this->getS3Client();
         $mock->shouldReceive('headObject')->once()->andReturn(Mockery::self());
-        $mock->shouldReceive('getAll')->once()->andReturn(array('ContentLength' => 20, 'ContentType' => 'text/plain'));
+        $mock->shouldReceive('getAll')->once()->andReturn(['ContentLength' => 20, 'ContentType' => 'text/plain']);
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->{$method}('object.ext');
         $this->assertInternalType('array', $result);
@@ -325,7 +325,7 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mock = $this->getS3Client();
         $mock->shouldReceive('putObject')->once();
         $adapter = new Adapter($mock, 'bucketname');
-        $result = $adapter->createDir('something');
+        $result = $adapter->createDir('something', new Config());
         $this->assertArrayHasKey('path', $result);
         $this->assertArrayHasKey('type', $result);
         $this->assertEquals('something', $result['path']);
@@ -337,7 +337,7 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mock = $this->getS3Client();
         $mock->shouldReceive('putObject')->andReturn(false);
         $adapter = new Adapter($mock, 'bucketname');
-        $result = $adapter->createDir('something');
+        $result = $adapter->createDir('something', new Config());
         $this->assertFalse($result);
     }
 
@@ -345,7 +345,7 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
     {
         $mock = $this->getS3Client();
         $mock->shouldReceive('getObject')->once()->andReturn(Mockery::self());
-        $mock->shouldReceive('getAll')->once()->andReturn(array('ContentLength' => 10, 'ContentType' => 'text/plain', 'Body' => '1234567890', 'Key' => 'file.ext'));
+        $mock->shouldReceive('getAll')->once()->andReturn(['ContentLength' => 10, 'ContentType' => 'text/plain', 'Body' => '1234567890', 'Key' => 'file.ext']);
         $adapter = new Adapter($mock, 'bucketname');
         $result = $adapter->read('file.ext');
         $this->assertEquals('1234567890', $result['contents']);
@@ -356,5 +356,18 @@ class AwsS3Tests extends PHPUnit_Framework_TestCase
         $mock = $this->getS3Client();
         $adapter = new Adapter($mock, 'bucket');
         $this->assertInstanceOf('Aws\S3\Model\MultipartUpload\UploadBuilder', $adapter->getUploadBuilder());
+    }
+
+    /**
+     * @param $permission
+     * @param $uri
+     * @param $mock
+     */
+    protected function expectVisibilityCall($permission, $uri, $mock)
+    {
+        $grant = ['Permission' => $permission, 'Grantee' => ['URI' => $uri]];
+        $grants = ['Grants' => [$grant]];
+        $result = new Model($grants);
+        $mock->shouldReceive('getObjectAcl')->once()->andReturn($result);
     }
 }

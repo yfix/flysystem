@@ -5,21 +5,21 @@ namespace League\Flysystem;
 class Config
 {
     /**
-     * @var  array  $settings
+     * @var array
      */
-    protected $settings = array();
+    protected $settings = [];
 
     /**
-     * @var  Config  $fallback
+     * @var Config
      */
     protected $fallback;
 
     /**
      * Constructor
      *
-     * @param  array  $settings
+     * @param array $settings
      */
-    public function __construct(array $settings = array())
+    public function __construct(array $settings = [])
     {
         $this->settings = $settings;
     }
@@ -27,13 +27,14 @@ class Config
     /**
      * Get a setting
      *
-     * @param   string  $key
-     * @param   mixed   $default
-     * @return  mixed   config setting or default when not found
+     * @param string $key
+     * @param mixed  $default
+     *
+     * @return mixed config setting or default when not found
      */
     public function get($key, $default = null)
     {
-        if ( ! array_key_exists($key, $this->settings)) {
+        if (! array_key_exists($key, $this->settings)) {
             return $this->getDefault($key, $default);
         }
 
@@ -43,8 +44,9 @@ class Config
     /**
      * Check if an item exists by key
      *
-     * @param   string  $key
-     * @return  bool
+     * @param string $key
+     *
+     * @return bool
      */
     public function has($key)
     {
@@ -54,13 +56,14 @@ class Config
     /**
      * Try to retrieve a default setting from a config fallback
      *
-     * @param   string  $key
-     * @param   mixed   $default
-     * @return  mixed   config setting or default when not found
+     * @param string $key
+     * @param mixed  $default
+     *
+     * @return mixed config setting or default when not found
      */
     protected function getDefault($key, $default)
     {
-        if ( ! $this->fallback) {
+        if (! $this->fallback) {
             return $default;
         }
 
@@ -70,9 +73,10 @@ class Config
     /**
      * Set a setting
      *
-     * @param   string  $key
-     * @param   mixed   $value
-     * @return  $this
+     * @param string $key
+     * @param mixed  $value
+     *
+     * @return $this
      */
     public function set($key, $value)
     {
@@ -84,8 +88,9 @@ class Config
     /**
      * Set the fallback
      *
-     * @param   Config  $fallback
-     * @return  $this
+     * @param Config $fallback
+     *
+     * @return $this
      */
     public function setFallback(Config $fallback)
     {

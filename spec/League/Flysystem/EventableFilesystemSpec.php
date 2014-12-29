@@ -2,21 +2,19 @@
 
 namespace spec\League\Flysystem;
 
-use PhpSpec\ObjectBehavior;
-use Prophecy\Argument;
 use League\Flysystem\AdapterInterface;
+use PhpSpec\ObjectBehavior;
 
 class EventableFilesystemSpec extends ObjectBehavior
 {
-    function let(AdapterInterface $adapter)
+    public function let(AdapterInterface $adapter)
     {
         $this->beConstructedWith($adapter);
     }
 
-    function it_is_initializable()
+    public function it_is_initializable()
     {
         $this->shouldHaveType('League\Flysystem\EventableFilesystem');
         $this->shouldHaveType('League\Flysystem\FilesystemInterface');
-        $this->shouldHaveType('League\Flysystem\AdapterInterface');
     }
 }

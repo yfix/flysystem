@@ -5,28 +5,27 @@ namespace League\Flysystem\Event;
 use League\Event\AbstractEvent;
 use League\Flysystem\FilesystemInterface;
 
-
 class After extends AbstractEvent
 {
     /**
-     * @var  FilesystemInterface  $filesystem
+     * @var FilesystemInterface
      */
     protected $filesystem;
 
     /**
-     * @var  string  $method
+     * @var string
      */
     protected $method;
 
     /**
-     * @var  mixed  $result
+     * @var mixed
      */
     protected $result;
 
     /**
      * @param FilesystemInterface $filesystem
-     * @param $method
-     * @param mixed $result
+     * @param string              $method
+     * @param mixed               $result
      */
     public function __construct(FilesystemInterface $filesystem, $method, $result)
     {
@@ -45,7 +44,6 @@ class After extends AbstractEvent
         return $this->filesystem;
     }
 
-
     /**
      * Get the event name
      *
@@ -55,7 +53,7 @@ class After extends AbstractEvent
     {
         $method = $this->getMethod();
 
-        return 'after.' . strtolower($method);
+        return 'after.'.strtolower($method);
     }
 
     /**
@@ -82,6 +80,7 @@ class After extends AbstractEvent
      * Overwrite the result
      *
      * @param mixed $result
+     *
      * @return $this
      */
     public function setResult($result)

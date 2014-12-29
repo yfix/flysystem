@@ -2,28 +2,49 @@
 
 namespace League\Flysystem\Adapter;
 
+use League\Flysystem\Adapter\Polyfill\NotSupportingVisibilityTrait;
+use League\Flysystem\Adapter\Polyfill\StreamedCopyTrait;
+use League\Flysystem\Adapter\Polyfill\StreamedWritingTrait;
 use League\Flysystem\Config;
+use League\Flysystem\Util;
 use LogicException;
 use ZipArchive;
-use League\Flysystem\Util;
 
 class Zip extends AbstractAdapter
 {
-    protected static $resultMap = array(
+    use StreamedWritingTrait;
+    use StreamedCopyTrait;
+    use NotSupportingVisibilityTrait;
+
+    /**
+     * @var array
+     */
+    protected static $resultMap = [
         'size'  => 'size',
         'mtime' => 'timestamp',
         'name'  => 'path',
-    );
+    ];
 
+    /**
+     * @var ZipArchive
+     */
     protected $archive;
 
+    /**
+     * @param            $location
+     * @param ZipArchive $archive
+     * @param null       $prefix
+     */
     public function __construct($location, ZipArchive $archive = null, $prefix = null)
     {
-        $this->setArchive($archive ?: new ZipArchive);
+        $this->setArchive($archive ?: new ZipArchive());
         $this->openArchive($location);
         $this->setPathPrefix($prefix);
     }
 
+    /**
+     * Re-open an archive to ensure persistence.
+     */
     protected function reopenArchive()
     {
         $path = $this->archive->filename;
@@ -31,16 +52,31 @@ class Zip extends AbstractAdapter
         $this->openArchive($path);
     }
 
+    /**
+     * ZipArchive setter
+     *
+     * @param ZipArchive $archive
+     */
     public function setArchive(ZipArchive $archive)
     {
         $this->archive = $archive;
     }
 
+    /**
+     * Get the used ZipArchive
+     *
+     * @return ZipArchive
+     */
     public function getArchive()
     {
         return $this->archive;
     }
 
+    /**
+     * Open a zip file.
+     *
+     * @param $location
+     */
     public function openArchive($location)
     {
         $location = str_replace('/', DIRECTORY_SEPARATOR, $location);
@@ -50,17 +86,19 @@ class Zip extends AbstractAdapter
         }
     }
 
-    public function write($path, $contents, $config = null)
+    /**
+     * {@inheritdoc}
+     */
+    public function write($path, $contents, Config $config)
     {
         $location = $this->applyPathPrefix($path);
         $dirname = Util::dirname($path);
-        $config = Util::ensureConfig($config);
 
-        if ( ! empty($dirname) && ! $this->has($dirname)) {
-            $this->createDir($dirname);
+        if (! empty($dirname) && ! $this->has($dirname)) {
+            $this->createDir($dirname, $config);
         }
 
-        if ( ! $this->archive->addFromString($location, $contents)) {
+        if (! $this->archive->addFromString($location, $contents)) {
             return false;
         }
 
@@ -73,13 +111,19 @@ class Zip extends AbstractAdapter
         return $result;
     }
 
-    public function update($path, $contents, $config = null)
+    /**
+     * {@inheritdoc}
+     */
+    public function update($path, $contents, Config $config)
     {
         $this->delete($path);
 
         return $this->write($path, $contents, $config);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function rename($path, $newpath)
     {
         $source = $this->applyPathPrefix($path);
@@ -88,6 +132,9 @@ class Zip extends AbstractAdapter
         return $this->archive->renameName($source, $destination);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function delete($path)
     {
         $location = $this->applyPathPrefix($path);
@@ -95,6 +142,9 @@ class Zip extends AbstractAdapter
         return $this->archive->deleteName($location);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function deleteDir($dirname)
     {
         // This is needed to ensure the right number of
@@ -117,56 +167,62 @@ class Zip extends AbstractAdapter
     }
 
     /**
-     * Create a directory
-     *
-     * @param   string       $dirname directory name
-     * @param   array|Config $options
-     *
-     * @return  bool
+     * {@inheritdoc}
      */
-    public function createDir($dirname, $options = null)
+    public function createDir($dirname, Config $config)
     {
-        if ( ! $this->has($dirname)) {
+        if (! $this->has($dirname)) {
             $location = $this->applyPathPrefix($dirname);
-
             $this->archive->addEmptyDir($location);
         }
 
-        return array('path' => $dirname);
+        return ['path' => $dirname];
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function has($path)
     {
         return $this->getMetadata($path);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function read($path)
     {
         $this->reopenArchive();
         $location = $this->applyPathPrefix($path);
 
-        if ( ! $contents = $this->archive->getFromName($location)) {
+        if (! $contents = $this->archive->getFromName($location)) {
             return false;
         }
 
         return compact('contents');
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function readStream($path)
     {
         $this->reopenArchive();
         $location = $this->applyPathPrefix($path);
 
-        if ( ! $stream = $this->archive->getStream($location)) {
+        if (! $stream = $this->archive->getStream($location)) {
             return false;
         }
 
         return compact('stream');
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function listContents($dirname = '', $recursive = false)
     {
-        $result = array();
+        $result = [];
 
         // This is needed to ensure the right number of
         // files are set to the $numFiles property.
@@ -181,41 +237,57 @@ class Zip extends AbstractAdapter
         return $result;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getMetadata($path)
     {
         $location = $this->applyPathPrefix($path);
 
-        if ( ! $info = $this->archive->statName($location)) {
+        if (! $info = $this->archive->statName($location)) {
             return false;
         }
 
         return $this->normalizeObject($info);
     }
 
+    /**
+     * Normalize a zip response array
+     *
+     * @param array $object
+     *
+     * @return array
+     */
     protected function normalizeObject(array $object)
     {
         if (substr($object['name'], -1) === '/') {
-            return array(
+            return [
                 'path' => $this->removePathPrefix(trim($object['name'], '/')),
-                'type' => 'dir'
-            );
+                'type' => 'dir',
+            ];
         }
 
-        $result = array('type' => 'file');
+        $result = ['type' => 'file'];
         $normalised = Util::map($object, static::$resultMap);
         $normalised['path'] = $this->removePathPrefix($normalised['path']);
 
         return array_merge($result, $normalised);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getSize($path)
     {
         return $this->getMetadata($path);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getMimetype($path)
     {
-        if ( ! $data = $this->read($path)) {
+        if (! $data = $this->read($path)) {
             return false;
         }
 
@@ -224,6 +296,9 @@ class Zip extends AbstractAdapter
         return $data;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getTimestamp($path)
     {
         return $this->getMetadata($path);

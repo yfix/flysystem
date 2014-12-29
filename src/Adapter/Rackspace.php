@@ -2,30 +2,35 @@
 
 namespace League\Flysystem\Adapter;
 
+use Guzzle\Http\Exception\ClientErrorResponseException;
+use League\Flysystem\Adapter\Polyfill\NotSupportingVisibilityTrait;
+use League\Flysystem\Adapter\Polyfill\StreamedCopyTrait;
 use League\Flysystem\Config;
 use League\Flysystem\Util;
+use OpenCloud\ObjectStore\Exception\ObjectNotFoundException;
 use OpenCloud\ObjectStore\Resource\Container;
 use OpenCloud\ObjectStore\Resource\DataObject;
-use OpenCloud\ObjectStore\Exception\ObjectNotFoundException;
-use Guzzle\Http\Exception\ClientErrorResponseException;
 
 class Rackspace extends AbstractAdapter
 {
+    use StreamedCopyTrait;
+    use NotSupportingVisibilityTrait;
+
     /**
-     * @var  Container  $container
+     * @var Container
      */
     protected $container;
 
     /**
-     * @var  string  $prefix
+     * @var string
      */
     protected $prefix;
 
     /**
      * Constructor
      *
-     * @param  Container  $container
-     * @param  string     $prefix
+     * @param Container $container
+     * @param string    $prefix
      */
     public function __construct(Container $container, $prefix = null)
     {
@@ -37,8 +42,9 @@ class Rackspace extends AbstractAdapter
     /**
      * Get an object
      *
-     * @param   string  $path
-     * @return  DataObject
+     * @param string $path
+     *
+     * @return DataObject
      */
     protected function getObject($path)
     {
@@ -48,14 +54,9 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Write a file
-     *
-     * @param   string  $path
-     * @param   string  $contents
-     * @param   mixed   $config
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
-    public function write($path, $contents, $config = null)
+    public function write($path, $contents, Config $config)
     {
         $location = $this->applyPathPrefix($path);
         $headers = [];
@@ -70,21 +71,16 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Update a file
-     *
-     * @param   string  $path
-     * @param   string  $contents
-     * @param   mixed   $config   Config object or visibility setting
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
-    public function update($path, $contents, $config = null)
+    public function update($path, $contents, Config $config)
     {
         $object = $this->getObject($path);
         $object->setContent($contents);
         $object->setEtag(null);
         $response = $object->update();
 
-        if ( ! $response->getLastModified()) {
+        if (! $response->getLastModified()) {
             return false;
         }
 
@@ -92,11 +88,7 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Rename a file
-     *
-     * @param   string      $path
-     * @param   string      $newpath
-     * @return  bool|array  false or file metadata
+     * {@inheritdoc}
      */
     public function rename($path, $newpath)
     {
@@ -115,10 +107,7 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Delete a file
-     *
-     * @param   string  $path
-     * @return  boolean
+     * {@inheritdoc}
      */
     public function delete($path)
     {
@@ -138,20 +127,18 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Delete a directory
-     *
-     * @param   string  $dirname
-     * @return  boolean
+     * {@inheritdoc}
      */
     public function deleteDir($dirname)
     {
-        $paths = array();
+        $paths = [];
         $prefix = '/'.$this->container->getName().'/';
         $location = $this->applyPathPrefix($dirname);
-        $objects = $this->container->objectList(array('prefix' => $location));
+        $objects = $this->container->objectList(['prefix' => $location]);
 
-        foreach ($objects as $object)
+        foreach ($objects as $object) {
             $paths[] = $prefix.ltrim($object->getName(), '/');
+        }
 
         $service = $this->container->getService();
         $response =  $service->bulkDelete($paths);
@@ -164,22 +151,17 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Create a directory
-     *
-     * @param   string       $dirname directory name
-     * @param   array|Config $options
-     *
-     * @return  bool
+     * {@inheritdoc}
      */
-    public function createDir($dirname, $options = null)
+    public function createDir($dirname, Config $config)
     {
-        return array('path' => $dirname);
+        return ['path' => $dirname];
     }
 
     /**
      * {@inheritdoc}
      */
-    public function writeStream($path, $resource, $config = null)
+    public function writeStream($path, $resource, Config $config)
     {
         return $this->write($path, $resource, $config);
     }
@@ -187,7 +169,7 @@ class Rackspace extends AbstractAdapter
     /**
      * {@inheritdoc}
      */
-    public function updateStream($path, $resource, $config = null)
+    public function updateStream($path, $resource, Config $config)
     {
         return $this->update($path, $resource, $config);
     }
@@ -199,9 +181,9 @@ class Rackspace extends AbstractAdapter
     {
         try {
             $object = $this->getObject($path);
-        } catch(ClientErrorResponseException $e) {
+        } catch (ClientErrorResponseException $e) {
             return false;
-        } catch(ObjectNotFoundException $e) {
+        } catch (ObjectNotFoundException $e) {
             return false;
         }
 
@@ -209,10 +191,7 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Get a file's contents
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function read($path)
     {
@@ -224,50 +203,53 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Get a file's metadata
-     *
-     * @param string $directory
-     * @param bool   $recursive
-     * @return  array   file metadata
+     * {@inheritdoc}
+     */
+    public function readStream($path)
+    {
+        $object = $this->getObject($path);
+        $data = $this->normalizeObject($object);
+        $responseBody = $object->getContent();
+        $data['stream'] = $responseBody->getStream();
+        $responseBody->detachStream();
+
+        return $data;
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function listContents($directory = '', $recursive = false)
     {
         $location = $this->applyPathPrefix($directory);
-        $response = $this->container->objectList(array('prefix' => $location));
+        $response = $this->container->objectList(['prefix' => $location]);
         $response = iterator_to_array($response);
-        $contents = array_map(array($this, 'normalizeObject'), $response);
+        $contents = array_map([$this, 'normalizeObject'], $response);
 
         return Util::emulateDirectories($contents);
     }
 
     /**
-     * Normalize a DataObject
-     *
-     * @param   DataObject  $object
-     * @return  array       file metadata
+     * {@inheritdoc}
      */
     protected function normalizeObject(DataObject $object)
     {
         $name = $object->getName();
         $name = $this->removePathPrefix($name);
-
         $mimetype = explode('; ', $object->getContentType());
 
-        return array(
+        return [
             'type' => 'file',
             'dirname' => Util::dirname($name),
             'path' => $name,
             'timestamp' => strtotime($object->getLastModified()),
             'mimetype' => reset($mimetype),
             'size' => $object->getContentLength(),
-        );
+        ];
     }
 
     /**
-     * Get a file's metadata
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getMetadata($path)
     {
@@ -277,10 +259,7 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Get a file's size
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getSize($path)
     {
@@ -288,10 +267,7 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Get a file's mimetype
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getMimetype($path)
     {
@@ -299,10 +275,7 @@ class Rackspace extends AbstractAdapter
     }
 
     /**
-     * Get a file's timestamp
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getTimestamp($path)
     {

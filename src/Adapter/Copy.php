@@ -3,21 +3,24 @@
 namespace League\Flysystem\Adapter;
 
 use Barracuda\Copy\API;
+use League\Flysystem\Adapter\Polyfill\NotSupportingVisibilityTrait;
 use League\Flysystem\Config;
 use League\Flysystem\Util;
 
 class Copy extends AbstractAdapter
 {
+    use NotSupportingVisibilityTrait;
+
     /**
      * Result key map
      *
      * @var array
      */
-    protected static $resultMap = array(
+    protected static $resultMap = [
         'size'           => 'size',
         'mime_type'      => 'mimetype',
         'type'           => 'type',
-    );
+    ];
 
     /**
      * Copy API
@@ -29,10 +32,10 @@ class Copy extends AbstractAdapter
     /**
      * Constructor
      *
-     * @param  \Barracuda\Copy\API   $client
-     * @param  string                $prefix
+     * @param API    $client
+     * @param string $prefix
      */
-    public function __construct(\Barracuda\Copy\API $client, $prefix = null)
+    public function __construct(API $client, $prefix = null)
     {
         $this->client = $client;
         $this->setPathPrefix($prefix);
@@ -41,8 +44,9 @@ class Copy extends AbstractAdapter
     /**
      * Check weather a file exists
      *
-     * @param   string       $path
-     * @return  false|array  false or file metadata
+     * @param string $path
+     *
+     * @return array|false false or file metadata
      */
     public function has($path)
     {
@@ -52,14 +56,9 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Write a file
-     *
-     * @param   string  $path
-     * @param   string  $contents
-     * @param   mixed   $config
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
-    public function write($path, $contents, $config = null)
+    public function write($path, $contents, Config $config)
     {
         $location = $this->applyPathPrefix($path);
         $result = $this->client->uploadFromString($location, $contents);
@@ -68,14 +67,9 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Write a file using a stream
-     *
-     * @param   string    $path
-     * @param   resource  $resource
-     * @param   mixed     $config
-     * @return  array     file metadata
+     * {@inheritdoc}
      */
-    public function writeStream($path, $resource, $config = null)
+    public function writeStream($path, $resource, Config $config)
     {
         $location = $this->applyPathPrefix($path);
         $result = $this->client->uploadFromStream($location, $resource);
@@ -84,14 +78,9 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Update a file
-     *
-     * @param   string  $path
-     * @param   string  $contents
-     * @param   mixed   $config   Config object or visibility setting
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
-    public function update($path, $contents, $config = null)
+    public function update($path, $contents, Config $config)
     {
         $location = $this->applyPathPrefix($path);
         $result = $this->client->uploadFromString($location, $contents);
@@ -100,14 +89,9 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Update a file using a stream
-     *
-     * @param   string    $path
-     * @param   resource  $resource
-     * @param   mixed     $config   Config object or visibility setting
-     * @return  array     file metadata
+     * {@inheritdoc}
      */
-    public function updateStream($path, $resource, $config = null)
+    public function updateStream($path, $resource, Config $config)
     {
         $location = $this->applyPathPrefix($path);
         $result = $this->client->uploadFromStream($location, $resource);
@@ -116,10 +100,7 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Read a file
-     *
-     * @param   string  $path
-     * @return  array   contains key of contents that has binary data
+     * {@inheritdoc}
      */
     public function read($path)
     {
@@ -129,10 +110,7 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Get a read-stream for a file
-     *
-     * @param   string  $path
-     * @return  array   contains key of stream that has resource
+     * {@inheritdoc}
      */
     public function readStream($path)
     {
@@ -142,43 +120,36 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Rename an object (file or dir)
-     *
-     * @param   string  $path
-     * @param   string  $newpath
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function rename($path, $newpath)
     {
         $location = $this->applyPathPrefix($path);
         $destination = $this->applyPathPrefix($newpath);
 
-        if ( ! $result = $this->client->rename($location, $destination)) {
+        if (! $this->client->rename($location, $destination)) {
             return false;
         }
 
-        return $this->normalizeObject($result, $newpath);
+        return true;
     }
 
     /**
-     * Copy a file
-     *
-     * @param   string  $path
-     * @param   string  $newpath
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function copy($path, $newpath)
     {
-        $result = $this->client->copy($path, $newpath);
+        try {
+            $this->client->copy($path, $newpath);
+        } catch (\Exception $e) {
+            return false;
+        }
 
-        return $this->normalizeObject($result, $newpath);
+        return true;
     }
 
     /**
-     * Delete a file
-     *
-     * @param   string   $path
-     * @return  boolean  delete result
+     * {@inheritdoc}
      */
     public function delete($path)
     {
@@ -188,10 +159,7 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Delete a directory (recursive)
-     *
-     * @param   string   $path
-     * @return  boolean  delete result
+     * {@inheritdoc}
      */
     public function deleteDir($path)
     {
@@ -201,26 +169,23 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Create a directory
-     *
-     * @param   string        $path directory name
-     * @param   array|Config  $options
-     *
-     * @return  bool
+     * {@inheritdoc}
      */
-    public function createDir($path, $config = null)
+    public function createDir($path, Config $config)
     {
         $location = $this->applyPathPrefix($path);
 
-        return $this->client->createDir($location);
+        try {
+            $this->client->createDir($location);
+        } catch (\Exception $e) {
+            return false;
+        }
+
+        return compact('path') + ['type' => 'dir'];
     }
 
-
     /**
-     * Get metadata for a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getMetadata($path)
     {
@@ -235,10 +200,7 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Get the mimetype of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getMimetype($path)
     {
@@ -246,10 +208,7 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Get the size of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getSize($path)
     {
@@ -257,10 +216,7 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * Get the timestamp of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getTimestamp($path)
     {
@@ -268,19 +224,15 @@ class Copy extends AbstractAdapter
     }
 
     /**
-     * List contents of a directory
-     *
-     * @param   string  $dirname
-     * @param   bool    $recursive
-     * @return  array   directory contents
+     * {@inheritdoc}
      */
     public function listContents($dirname = '', $recursive = false)
     {
-        $listing = array();
+        $listing = [];
         $location = $this->applyPathPrefix($dirname);
 
-        if ( ! $result = $this->client->listPath($location)) {
-            return false;
+        if (! $result = $this->client->listPath($location)) {
+            return [];
         }
 
         foreach ($result as $object) {
@@ -297,9 +249,10 @@ class Copy extends AbstractAdapter
     /**
      * Normalize a result from Copy
      *
-     * @param   stdClass   $object
-     * @param   string     $path
-     * @return  array      file metadata
+     * @param stdClass $object
+     * @param string   $path
+     *
+     * @return array|false file metadata
      */
     protected function normalizeObject($object, $path)
     {
@@ -319,13 +272,14 @@ class Copy extends AbstractAdapter
     /**
      * Apply the path prefix
      *
-     * @param   string  $path
-     * @return  string  prefixed path
+     * @param string $path
+     *
+     * @return string prefixed path
      */
     public function applyPathPrefix($path)
     {
         $prefixed = parent::applyPathPrefix($path);
 
-        return '/' . ltrim($prefixed, '/');
+        return '/'.ltrim($prefixed, '/');
     }
 }

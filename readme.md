@@ -12,13 +12,6 @@
 
 Flysystem is a filesystem abstraction which allows you to easily swap out a local filesystem for a remote one.
 
-# Support Flysystem
-
-Do you use Flysystem often? Supporting it through Gittip will help freeing up extra time for me to work on
-bugs, new features and documentation.
-
-[![Support with Gittip](http://img.shields.io/gittip/FrenkyNet.svg)](https://www.gittip.com/FrenkyNet/)
-
 # Goals
 
 * Have a generic API for handling common tasks across multiple file storage engines.
@@ -34,12 +27,8 @@ bugs, new features and documentation.
 
 Through Composer, obviously:
 
-```json
-{
-    "require": {
-        "league/flysystem": "0.5.*"
-    }
-}
+```
+composer require league/flysystem
 ```
 
 You can also use Flysystem without using Composer by registering an autoloader function:
@@ -67,6 +56,7 @@ Want to get started quickly? Check out some of these integrations:
 
 * Laravel integration: https://github.com/GrahamCampbell/Laravel-Flysystem
 * Symfony integration: https://github.com/1up-lab/OneupFlysystemBundle
+* Zend Framework integration : https://github.com/bushbaby/BsbFlysystem
 * Backup manager: https://github.com/heybigname/backup-manager
 
 ## Adapters
@@ -80,12 +70,8 @@ Want to get started quickly? Check out some of these integrations:
 * Sftp (through phpseclib)
 * Zip (through ZipArchive)
 * WebDAV (through SabreDAV)
+* Azure Blob Storage
 * NullAdapter
-
-### Planned Adapters
-
-* Azure (PR welcome)
-* PR's welcome?
 
 ## Caching
 
@@ -136,9 +122,9 @@ use OpenCloud\Rackspace;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Adapter\Rackspace as Adapter;
 
-$client = new OpenStack(Rackspace::UK_IDENTITY_ENDPOINT, array(
+$client = new Rackspace(Rackspace::UK_IDENTITY_ENDPOINT, array(
     'username' => ':username',
-    'password' => ':password',
+    'apiKey' => ':password',
 ));
 
 $store = $client->objectStoreService('cloudFiles', 'LON');

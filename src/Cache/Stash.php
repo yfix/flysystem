@@ -7,26 +7,26 @@ use Stash\Pool;
 class Stash extends AbstractCache
 {
     /**
-     * @var  string  $key  storage key
+     * @var string storage key
      */
     protected $key;
 
     /**
-     * @var  int|null  $expire  seconds until cache expiration
+     * @var int|null seconds until cache expiration
      */
     protected $expire;
 
     /**
-     * @var  \Stash\Pool  $pool  Stash pool instance
+     * @var \Stash\Pool Stash pool instance
      */
     protected $pool;
 
     /**
      * Constructor
      *
-     * @param   \Stash\Pool  $pool
-     * @param   string       $key        storage key
-     * @param   int|null     $expire     seconds until cache expiration
+     * @param \Stash\Pool $pool
+     * @param string      $key    storage key
+     * @param int|null    $expire seconds until cache expiration
      */
     public function __construct(Pool $pool, $key = 'flysystem', $expire = null)
     {

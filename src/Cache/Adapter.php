@@ -3,30 +3,31 @@
 namespace League\Flysystem\Cache;
 
 use League\Flysystem\AdapterInterface;
+use League\Flysystem\Config;
 
 class Adapter extends AbstractCache
 {
     /**
-     * @var  AdapterInterface  $adapter  An adapter
+     * @var AdapterInterface An adapter
      */
     protected $adapter;
 
     /**
-     * @var  string  $file  the file to cache to
+     * @var string the file to cache to
      */
     protected $file;
 
     /**
-     * @var  int|null  $expire  seconds until cache expiration
+     * @var int|null seconds until cache expiration
      */
     protected $expire = null;
 
     /**
      * Constructor
      *
-     * @param AdapterInterface  $adapter  adapter
-     * @param string            $file     the file to cache to
-     * @param int|null          $expire   seconds until cache expiration
+     * @param AdapterInterface $adapter adapter
+     * @param string           $file    the file to cache to
+     * @param int|null         $expire  seconds until cache expiration
      */
     public function __construct(AdapterInterface $adapter, $file, $expire = null)
     {
@@ -38,7 +39,7 @@ class Adapter extends AbstractCache
     /**
      * Set the expiration time in seconds
      *
-     * @param  int  $expire  relative expiration time
+     * @param int $expire relative expiration time
      */
     protected function setExpire($expire)
     {
@@ -50,8 +51,9 @@ class Adapter extends AbstractCache
     /**
      * Get expiration time in seconds
      *
-     * @param  int  $time  relative expiration time
-     * @return int  actual expiration time
+     * @param int $time relative expiration time
+     *
+     * @return int actual expiration time
      */
     protected function getTime($time = 0)
     {
@@ -63,9 +65,9 @@ class Adapter extends AbstractCache
      */
     public function setFromStorage($json)
     {
-        list ($cache, $complete, $expire) = json_decode($json, true);
+        list($cache, $complete, $expire) = json_decode($json, true);
 
-        if ( ! $expire || $expire > $this->getTime()) {
+        if (! $expire || $expire > $this->getTime()) {
             $this->cache = $cache;
             $this->complete = $complete;
         } else {
@@ -90,7 +92,7 @@ class Adapter extends AbstractCache
     {
         $cleaned = $this->cleanContents($this->cache);
 
-        return json_encode(array($cleaned, $this->complete, $this->expire));
+        return json_encode([$cleaned, $this->complete, $this->expire]);
     }
 
     /**
@@ -98,12 +100,13 @@ class Adapter extends AbstractCache
      */
     public function save()
     {
+        $config = new Config();
         $contents = $this->getForStorage();
 
         if ($this->adapter->has($this->file)) {
-            $this->adapter->update($this->file, $contents);
+            $this->adapter->update($this->file, $contents, $config);
         } else {
-            $this->adapter->write($this->file, $contents);
+            $this->adapter->write($this->file, $contents, $config);
         }
     }
 }

@@ -8,12 +8,12 @@ use League\Flysystem\Config;
 class ReplicateAdapter implements AdapterInterface
 {
     /**
-     * @var AdapterInterface $replica
+     * @var AdapterInterface
      */
     protected $replica;
 
     /**
-     * @var AdapterInterface $source
+     * @var AdapterInterface
      */
     protected $source;
 
@@ -50,17 +50,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Write a new file to the source and replica
-     *
-     * @param   string $path
-     * @param   string $contents
-     * @param   mixed  $config Config object or visibility setting
-     *
-     * @return  false|array  false on failure file meta data on success
+     * {@inheritdoc}
      */
-    public function write($path, $contents, $config = null)
+    public function write($path, $contents, Config $config)
     {
-        if ( ! $this->source->write($path, $contents, $config)) {
+        if (! $this->source->write($path, $contents, $config)) {
             return false;
         }
 
@@ -68,17 +62,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Write a new file to the source and replica from a stream
-     *
-     * @param   string $path
-     * @param   resource $resource
-     * @param   mixed  $config Config object or visibility setting
-     *
-     * @return  false|array  false on failure file meta data on success
+     * {@inheritdoc}
      */
-    public function writeStream($path, $resource, $config = null)
+    public function writeStream($path, $resource, Config $config)
     {
-        if ( ! $this->source->writeStream($path, $resource, $config)) {
+        if (! $this->source->writeStream($path, $resource, $config)) {
             return false;
         }
 
@@ -86,17 +74,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Update a file on the source and replica
-     *
-     * @param   string $path
-     * @param   string $contents
-     * @param   mixed  $config Config object or visibility setting
-     *
-     * @return  false|array  false on failure file meta data on success
+     * {@inheritdoc}
      */
-    public function update($path, $contents, $config = null)
+    public function update($path, $contents, Config $config)
     {
-        if ( ! $this->source->update($path, $contents, $config)) {
+        if (! $this->source->update($path, $contents, $config)) {
             return false;
         }
 
@@ -108,17 +90,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Update a file on the source and replica
-     *
-     * @param   string $path
-     * @param   resource $resource
-     * @param   mixed  $config Config object or visibility setting
-     *
-     * @return  false|array  false on failure file meta data on success
+     * {@inheritdoc}
      */
-    public function updateStream($path, $resource, $config = null)
+    public function updateStream($path, $resource, Config $config)
     {
-        if ( ! $this->source->updateStream($path, $resource, $config)) {
+        if (! $this->source->updateStream($path, $resource, $config)) {
             return false;
         }
 
@@ -130,16 +106,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Rename a file on the source and replica
-     *
-     * @param   string $path
-     * @param   string $newpath
-     *
-     * @return  boolean
+     * {@inheritdoc}
      */
     public function rename($path, $newpath)
     {
-        if ( ! $this->source->rename($path, $newpath)) {
+        if (! $this->source->rename($path, $newpath)) {
             return false;
         }
 
@@ -147,15 +118,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Copy a file
-     *
-     * @param   string  $path
-     * @param   string  $newpath
-     * @return  boolean
+     * {@inheritdoc}
      */
     public function copy($path, $newpath)
     {
-        if ( ! $this->source->copy($path, $newpath)) {
+        if (! $this->source->copy($path, $newpath)) {
             return false;
         }
 
@@ -163,15 +130,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Delete a file on the source and replica
-     *
-     * @param   string $path
-     *
-     * @return  boolean
+     * {@inheritdoc}
      */
     public function delete($path)
     {
-        if ( ! $this->source->delete($path)) {
+        if (! $this->source->delete($path)) {
             return false;
         }
 
@@ -183,15 +146,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Delete a directory on the source and replica
-     *
-     * @param   string $dirname
-     *
-     * @return  boolean
+     * {@inheritdoc}
      */
     public function deleteDir($dirname)
     {
-        if ( ! $this->source->deleteDir($dirname)) {
+        if (! $this->source->deleteDir($dirname)) {
             return false;
         }
 
@@ -199,28 +158,19 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Create a directory on the source and replica
-     *
-     * @param   string       $dirname directory name
-     * @param   array|Config $options
-     *
-     * @return  bool
+     * {@inheritdoc}
      */
-    public function createDir($dirname, $options = null)
+    public function createDir($dirname, Config $config)
     {
-        if ( ! $this->source->createDir($dirname, $options)) {
+        if (! $this->source->createDir($dirname, $config)) {
             return false;
         }
 
-        return $this->replica->createDir($dirname, $options);
+        return $this->replica->createDir($dirname, $config);
     }
 
     /**
-     * Check whether a file exists in the source
-     *
-     * @param   string $path
-     *
-     * @return  bool
+     * {@inheritdoc}
      */
     public function has($path)
     {
@@ -228,11 +178,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Read a file from the source
-     *
-     * @param   string $path
-     *
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function read($path)
     {
@@ -240,11 +186,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Get a read stream from the source
-     *
-     * @param   string $path
-     *
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function readStream($path)
     {
@@ -252,12 +194,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * List contents of a directory from the source
-     *
-     * @param   string $directory
-     * @param   bool   $recursive
-     *
-     * @return  array
+     * {@inheritdoc}
      */
     public function listContents($directory = '', $recursive = false)
     {
@@ -265,11 +202,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Get all the meta data of a file or directory from the source
-     *
-     * @param   string $path
-     *
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function getMetadata($path)
     {
@@ -277,11 +210,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Get all the size of a file or directory from the source
-     *
-     * @param   string $path
-     *
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function getSize($path)
     {
@@ -289,11 +218,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Get the mimetype of a file from the source
-     *
-     * @param   string $path
-     *
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function getMimetype($path)
     {
@@ -301,11 +226,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Get the timestamp of a file from the source
-     *
-     * @param   string $path
-     *
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function getTimestamp($path)
     {
@@ -313,11 +234,7 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Get the visibility of a file
-     *
-     * @param string $path
-     *
-     * @return array|false
+     * {@inheritdoc}
      */
     public function getVisibility($path)
     {
@@ -325,15 +242,11 @@ class ReplicateAdapter implements AdapterInterface
     }
 
     /**
-     * Set the file visibility
-     *
-     * @param   string  $path
-     * @param   string  $visibility
-     * @return  false|array
+     * {@inheritdoc}
      */
     public function setVisibility($path, $visibility)
     {
-        if ( ! $this->source->setVisibility($path, $visibility)) {
+        if (! $this->source->setVisibility($path, $visibility)) {
             return false;
         }
 

@@ -3,11 +3,12 @@
 namespace League\Flysystem\Adapter;
 
 use Aws\Common\Exception\MultipartUploadException;
+use Aws\S3\Enum\Group;
+use Aws\S3\Enum\Permission;
 use Aws\S3\Model\MultipartUpload\AbstractTransfer;
 use Aws\S3\Model\MultipartUpload\UploadBuilder;
 use Aws\S3\S3Client;
-use Aws\S3\Enum\Group;
-use Aws\S3\Enum\Permission;
+use Guzzle\Service\Resource\Model;
 use League\Flysystem\AdapterInterface;
 use League\Flysystem\Config;
 use League\Flysystem\Util;
@@ -15,70 +16,73 @@ use League\Flysystem\Util;
 class AwsS3 extends AbstractAdapter
 {
     /**
-     * @var  array  $resultMap
+     * @var array
      */
-    protected static $resultMap = array(
-        'Body'          => 'contents',
+    protected static $resultMap = [
+        'Body'          => 'raw_contents',
         'ContentLength' => 'size',
         'ContentType'   => 'mimetype',
         'Size'          => 'size',
-    );
+    ];
 
     /**
-     * @var  array  $metaOptions
+     * @var array
      */
-    protected static $metaOptions = array(
-        'Cache-Control',
+    protected static $metaOptions = [
+        'CacheControl',
         'Expires',
         'StorageClass',
         'ServerSideEncryption',
         'Metadata',
         'ACL',
-        'ContentType'
-    );
+        'ContentType',
+        'ContentDisposition',
+        'ContentLanguage',
+        'ContentEncoding',
+    ];
 
     /**
-     * @var  string  $bucket  bucket name
+     * @var string bucket name
      */
     protected $bucket;
 
     /**
-     * @var  S3Client  $client  S3 Client
+     * @var S3Client S3 Client
      */
     protected $client;
 
     /**
-     * @var  array  $options  default options[
-     *                            Multipart=1024 Mb - After what size should multipart be used
-     *                            MinPartSize=32 Mb - Minimum size of parts for each part
-     *                            Concurrency=3 - If multipart is used, how many concurrent connections should be used
-     *                            ]
+     * @var array default options[
+     *            Multipart=1024 Mb - After what size should multipart be used
+     *            MinPartSize=32 Mb - Minimum size of parts for each part
+     *            Concurrency=3 - If multipart is used, how many concurrent connections should be used
+     *            ]
      */
-    protected $options = array(
+    protected $options = [
         'Multipart' => 1024,
         'MinPartSize' => 32,
         'Concurrency' => 3,
-    );
+    ];
 
     /**
-     * @var  UploadBuilder $uploadBuilder Used to upload object using a multipart transfer
+     * @var UploadBuilder Used to upload object using a multipart transfer
      */
     protected $uploadBuilder;
 
     /**
      * Constructor
      *
-     * @param  S3Client      $client
-     * @param  string        $bucket
-     * @param  string        $prefix
-     * @param  array         $options
-     * @param  UploadBuilder $uploadBuilder
+     * @param S3Client      $client
+     * @param string        $bucket
+     * @param string        $prefix
+     * @param array         $options
+     * @param UploadBuilder $uploadBuilder
      */
     public function __construct(
         S3Client $client,
         $bucket,
         $prefix = null,
-        array $options = array(),
+        array $options = [],
         UploadBuilder $uploadBuilder = null
     ) {
         $this->client  = $client;
@@ -91,7 +95,7 @@ class AwsS3 extends AbstractAdapter
     /**
      * Get the S3Client bucket
      *
-     * @return  string
+     * @return string
      */
     public function getBucket()
     {
@@ -101,7 +105,7 @@ class AwsS3 extends AbstractAdapter
     /**
      * Get the S3Client instance
      *
-     * @return  S3Client
+     * @return S3Client
      */
     public function getClient()
     {
@@ -109,10 +113,7 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * Check whether a file exists
-     *
-     * @param   string  $path
-     * @return  bool    weather an object result
+     * {@inheritdoc}
      */
     public function has($path)
     {
@@ -122,42 +123,29 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * Write a file
-     *
-     * @param   string $path
-     * @param   string $contents
-     * @param   mixed  $config
-     *
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
-    public function write($path, $contents, $config = null)
+    public function write($path, $contents, Config $config)
     {
         $options = $this->getOptions(
             $path,
-            array(
+            [
                 'Body'          => $contents,
                 'ContentType'   => Util::guessMimeType($path, $contents),
                 'ContentLength' => Util::contentSize($contents),
-            ),
-            $config = Util::ensureConfig($config)
+            ],
+            $config
         );
 
         return $this->writeObject($options);
     }
 
     /**
-     * Write using a stream
-     *
-     * @param   string   $path
-     * @param   resource $resource
-     * @param   mixed    $config ['visibility'='private', 'mimetype'='', 'Metadata'=[]]
-     *
-     * @return  array     file metadata
+     * {@inheritdoc}
      */
-    public function writeStream($path, $resource, $config = null)
+    public function writeStream($path, $resource, Config $config)
     {
-        $config  = Util::ensureConfig($config);
-        $options = array('Body' => $resource);
+        $options = ['Body' => $resource];
         $options['ContentLength'] = Util::getStreamSize($resource);
         $options = $this->getOptions($path, $options, $config);
 
@@ -167,8 +155,9 @@ class AwsS3 extends AbstractAdapter
     /**
      * Write an object to S3
      *
-     * @param   array  $options
-     * @return  array   file metadata
+     * @param array $options
+     *
+     * @return array file metadata
      */
     protected function writeObject(array $options)
     {
@@ -185,183 +174,161 @@ class AwsS3 extends AbstractAdapter
             return false;
         }
 
-        if (is_resource($options['Body'])) unset($options['Body']);
+        if (! is_string($options['Body'])) {
+            unset($options['Body']);
+        }
 
-        return $this->normalizeObject($options);
+        return $this->normalizeResponse($options);
     }
 
     /**
-     * Update a file
-     *
-     * @param   string  $path
-     * @param   string  $contents
-     * @param   mixed   $config   Config object or visibility setting
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
-    public function update($path, $contents, $config = null)
+    public function update($path, $contents, Config $config)
     {
+        if (! $config->has('visibility') && ! $config->has('ACL')) {
+            $config->set('ACL', $this->getObjectACL($path));
+        }
+
         return $this->write($path, $contents, $config);
     }
 
     /**
-     * Update a file using a stream
-     *
-     * @param   string    $path
-     * @param   resource  $resource
-     * @param   mixed     $config   Config object or visibility setting
-     * @return  array     file metadata
+     * {@inheritdoc}
      */
-    public function updateStream($path, $resource, $config = null)
+    public function updateStream($path, $resource, Config $config)
     {
+        if (! $config->has('visibility') && ! $config->has('ACL')) {
+            $config->set('ACL', $this->getObjectACL($path));
+        }
+
         return $this->writeStream($path, $resource, $config);
     }
 
     /**
-     * Read a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function read($path)
     {
         $result = $this->readObject($path);
-        $result['contents'] = (string) $result['contents'];
+        $result['contents'] = (string) $result['raw_contents'];
+        unset($result['raw_contents']);
 
         return $result;
     }
 
     /**
-     * Get a read-stream for a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function readStream($path)
     {
         $result = $this->readObject($path);
-        $result['stream'] = $result['contents']->getStream();
+        $result['stream'] = $result['raw_contents']->getStream();
+        rewind($result['stream']);
+        // Ensure the EntityBody object destruction doesn't close the stream
+        $result['raw_contents']->detachStream();
+        unset($result['raw_contents']);
 
         return $result;
     }
 
     /**
-     * Get an object from S3
+     * Read an object from the S3Client
      *
-     * @param   string  $path
-     * @return  array   file metadata
+     * @param string $path
+     *
+     * @return array
      */
     protected function readObject($path)
     {
         $options = $this->getOptions($path);
         $result = $this->client->getObject($options);
 
-        return $this->normalizeObject($result->getAll(), $path);
+        return $this->normalizeResponse($result->getAll(), $path);
     }
 
     /**
-     * Rename a file
-     *
-     * @param   string  $path
-     * @param   string  $newpath
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function rename($path, $newpath)
     {
-        $options = $this->getOptions($newpath, array(
+        $options = $this->getOptions($newpath, [
             'Bucket' => $this->bucket,
             'CopySource' => $this->bucket.'/'.$this->applyPathPrefix($path),
-        ));
+            'ACL' => $this->getObjectACL($path),
+        ]);
 
-        $result = $this->client->copyObject($options)->getAll();
-        $result = $this->normalizeObject($result, $newpath);
+        $this->client->copyObject($options);
         $this->delete($path);
 
-        return $result;
+        return true;
     }
 
     /**
-     * Copy a file
-     *
-     * @param   string  $path
-     * @param   string  $newpath
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function copy($path, $newpath)
     {
-        $options = $this->getOptions($newpath, array(
+        $options = $this->getOptions($newpath, [
             'Bucket' => $this->bucket,
             'CopySource' => $this->bucket.'/'.$this->applyPathPrefix($path),
-        ));
+            'ACL' => $this->getObjectACL($path),
+        ]);
 
-        $result = $this->client->copyObject($options)->getAll();
+        $this->client->copyObject($options)->getAll();
 
-        return $this->normalizeObject($result, $newpath);
+        return true;
     }
 
     /**
-     * Delete a file
-     *
-     * @param   string   $path
-     * @return  boolean  delete result
+     * {@inheritdoc}
      */
     public function delete($path)
     {
         $options = $this->getOptions($path);
+        /** @var Model $response */
+        $response = $this->client->deleteObject($options);
 
-        return $this->client->deleteObject($options);
+        return $response->get('DeleteMarker');
     }
 
     /**
-     * Delete a directory (recursive)
-     *
-     * @param   string   $path
-     * @return  boolean  delete result
+     * {@inheritdoc}
      */
     public function deleteDir($path)
     {
-        $prefix = rtrim($this->applyPathPrefix($path), '/') . '/';
+        $prefix = rtrim($this->applyPathPrefix($path), '/').'/';
 
-        return $this->client->deleteMatchingObjects($this->bucket, $prefix);
+        return (bool) $this->client->deleteMatchingObjects($this->bucket, $prefix);
     }
 
     /**
-     * Create a directory
-     *
-     * @param   string        $path directory name
-     * @param   array|Config  $options
-     *
-     * @return  bool
+     * {@inheritdoc}
      */
-    public function createDir($path, $options = null)
+    public function createDir($path, Config $config)
     {
-        $result = $this->write(rtrim($path, '/') . '/', '', $options);
+        $result = $this->write(rtrim($path, '/').'/', '', $config);
 
-        if ( ! $result) {
+        if (! $result) {
             return false;
         }
 
-        return array('path' => $path, 'type' => 'dir');
+        return ['path' => $path, 'type' => 'dir'];
     }
 
     /**
-     * Get metadata for a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getMetadata($path)
     {
         $options = $this->getOptions($path);
         $result = $this->client->headObject($options);
 
-        return $this->normalizeObject($result->getAll(), $path);
+        return $this->normalizeResponse($result->getAll(), $path);
     }
 
     /**
-     * Get the mimetype of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getMimetype($path)
     {
@@ -369,10 +336,7 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * Get the file of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getSize($path)
     {
@@ -380,10 +344,7 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * Get the timestamp of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getTimestamp($path)
     {
@@ -391,10 +352,7 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * Get the visibility of a file
-     *
-     * @param   string  $path
-     * @return  array   file metadata
+     * {@inheritdoc}
      */
     public function getVisibility($path)
     {
@@ -413,17 +371,27 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * Get mimetype of a file
+     * The the ACL visibility
      *
-     * @param   string  $path
-     * @param   string  $visibility
-     * @return  array   file metadata
+     * @param string $path
+     *
+     * @return string
+     */
+    protected function getObjectACL($path)
+    {
+        $metadata = $this->getVisibility($path);
+
+        return $metadata['visibility'] === AdapterInterface::VISIBILITY_PUBLIC ? 'public-read' : 'private';
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function setVisibility($path, $visibility)
     {
-        $options = $this->getOptions($path, array(
+        $options = $this->getOptions($path, [
             'ACL' => $visibility === AdapterInterface::VISIBILITY_PUBLIC ? 'public-read' : 'private',
-        ));
+        ]);
 
         $this->client->putObjectAcl($options);
 
@@ -431,21 +399,17 @@ class AwsS3 extends AbstractAdapter
     }
 
     /**
-     * List contents of a directory
-     *
-     * @param   string  $dirname
-     * @param   bool    $recursive
-     * @return  array   directory contents
+     * {@inheritdoc}
      */
     public function listContents($dirname = '', $recursive = false)
     {
-        $objectsIterator = $this->client->getIterator('listObjects', array(
+        $objectsIterator = $this->client->getIterator('listObjects', [
             'Bucket' => $this->bucket,
             'Prefix' => $this->applyPathPrefix($dirname),
-        ));
+        ]);
 
         $contents = iterator_to_array($objectsIterator);
-        $result = array_map(array($this, 'normalizeObject'), $contents);
+        $result = array_map([$this, 'normalizeResponse'], $contents);
 
         return Util::emulateDirectories($result);
     }
@@ -453,13 +417,14 @@ class AwsS3 extends AbstractAdapter
     /**
      * Normalize a result from AWS
      *
-     * @param   array  $object
-     * @param   string  $path
-     * @return  array   file metadata
+     * @param array  $object
+     * @param string $path
+     *
+     * @return array file metadata
      */
-    protected function normalizeObject(array $object, $path = null)
+    protected function normalizeResponse(array $object, $path = null)
     {
-        $result = array('path' => $path ?: $this->removePathPrefix($object['Key']));
+        $result = ['path' => $path ?: $this->removePathPrefix($object['Key'])];
         $result['dirname'] = Util::dirname($result['path']);
 
         if (isset($object['LastModified'])) {
@@ -473,7 +438,7 @@ class AwsS3 extends AbstractAdapter
             return $result;
         }
 
-        $result = array_merge($result, Util::map($object, static::$resultMap), array('type' => 'file'));
+        $result = array_merge($result, Util::map($object, static::$resultMap), ['type' => 'file']);
 
         return $result;
     }
@@ -481,13 +446,13 @@ class AwsS3 extends AbstractAdapter
     /**
      * Get options for a AWS call
      *
-     * @param   string $path
-     * @param   array  $options
-     * @param   Config $config
+     * @param string $path
+     * @param array  $options
+     * @param Config $config
      *
-     * @return  array   AWS options
+     * @return array AWS options
      */
-    protected function getOptions($path, array $options = array(), Config $config = null)
+    protected function getOptions($path, array $options = [], Config $config = null)
     {
         $options = array_merge($this->options, $options);
         $options['Key']    = $this->applyPathPrefix($path);
@@ -503,15 +468,18 @@ class AwsS3 extends AbstractAdapter
     /**
      * Retrieve options from a Config instance
      *
-     * @param   Config  $config
-     * @return  array
+     * @param Config $config
+     *
+     * @return array
      */
     protected function getOptionsFromConfig(Config $config)
     {
-        $options = array();
+        $options = [];
 
         foreach (static::$metaOptions as $option) {
-            if ( ! $config->has($option)) continue;
+            if (! $config->has($option)) {
+                continue;
+            }
             $options[$option] = $config->get($option);
         }
 
@@ -535,9 +503,9 @@ class AwsS3 extends AbstractAdapter
     /**
      * Sends an object to a bucket using a multipart transfer, possibly also using concurrency
      *
-     * @param   array $options Can have: [Body, Bucket, Key, MinPartSize, Concurrency, ContentType, ACL, Metadata]
+     * @param array $options Can have: [Body, Bucket, Key, MinPartSize, Concurrency, ContentType, ACL, Metadata]
      *
-     * @return  bool
+     * @return bool
      */
     protected function putObjectMultipart(array $options)
     {
@@ -554,7 +522,9 @@ class AwsS3 extends AbstractAdapter
             ->setClient($this->client); // AbstractUploadBuilder, which makes IDE and CI complain.
 
         foreach (static::$metaOptions as $option) {
-            if ( ! array_key_exists($option, $options)) continue;
+            if (! array_key_exists($option, $options)) {
+                continue;
+            }
             $uploadBuilder->setOption($option, $options[$option]);
         }
 
@@ -566,9 +536,9 @@ class AwsS3 extends AbstractAdapter
     /**
      * Perform the upload. Abort the upload if something goes wrong.
      *
-     * @param   AbstractTransfer $uploader
+     * @param AbstractTransfer $uploader
      *
-     * @return  bool
+     * @return bool
      */
     protected function upload(AbstractTransfer $uploader)
     {
@@ -586,9 +556,9 @@ class AwsS3 extends AbstractAdapter
     /**
      * Convert megabytes to bytes
      *
-     * @param   int $megabytes
+     * @param int $megabytes
      *
-     * @return  int
+     * @return int
      */
     protected function mbToBytes($megabytes)
     {
@@ -598,8 +568,9 @@ class AwsS3 extends AbstractAdapter
     /**
      * Set the S3 UploadBuilder
      *
-     * @param   UploadBuilder $uploadBuilder
-     * @return  self
+     * @param UploadBuilder $uploadBuilder
+     *
+     * @return $this
      */
     public function setUploadBuilder(UploadBuilder $uploadBuilder = null)
     {
@@ -615,7 +586,7 @@ class AwsS3 extends AbstractAdapter
      */
     public function getUploadBuilder()
     {
-        if ( ! $this->uploadBuilder) {
+        if (! $this->uploadBuilder) {
             $this->uploadBuilder = UploadBuilder::newInstance();
         }
 

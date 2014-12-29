@@ -9,13 +9,14 @@ class MimeType
     /**
      * Detects MIME Type based on given content
      *
-     * @param  string $content
-     * @return string|null     MIME Type or NULL if no mime type detected
+     * @param string $content
+     *
+     * @return string|null MIME Type or NULL if no mime type detected
      */
     public static function detectByContent($content)
     {
-        if ( ! class_exists('Finfo')) {
-            return null;
+        if (! class_exists('Finfo')) {
+            return;
         }
 
         $finfo = new Finfo(FILEINFO_MIME_TYPE);
@@ -27,14 +28,17 @@ class MimeType
     /**
      * Detects MIME Type based on file extension
      *
-     * @param  string $extension
-     * @return string|null       MIME Type or NULL if no extension detected
+     * @param string $extension
+     *
+     * @return string|null MIME Type or NULL if no extension detected
      */
     public static function detectByFileExtension($extension)
     {
         static $extensionToMimeTypeMap;
 
-        if ( ! $extensionToMimeTypeMap) $extensionToMimeTypeMap = static::getExtensionToMimeTypeMap();
+        if (! $extensionToMimeTypeMap) {
+            $extensionToMimeTypeMap = static::getExtensionToMimeTypeMap();
+        }
 
         if (isset($extensionToMimeTypeMap[$extension])) {
             return $extensionToMimeTypeMap[$extension];
@@ -46,7 +50,7 @@ class MimeType
      */
     public static function getExtensionToMimeTypeMap()
     {
-        return array(
+        return [
             'hqx'   => 'application/mac-binhex40',
             'cpt'   => 'application/mac-compactpro',
             'csv'   => 'text/x-comma-separated-values',
@@ -186,6 +190,6 @@ class MimeType
             'cdr'   => 'application/cdr',
             'wma'   => 'audio/x-ms-wma',
             'jar'   => 'application/java-archive',
-        );
+        ];
     }
 }

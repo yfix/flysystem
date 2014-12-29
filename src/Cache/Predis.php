@@ -7,30 +7,30 @@ use Predis\Client;
 class Predis extends AbstractCache
 {
     /**
-     * @var  \Predis\Client  $client  Predis Client
+     * @var \Predis\Client Predis Client
      */
     protected $client;
 
     /**
-     * @var  string  $key  storage key
+     * @var string storage key
      */
     protected $key;
 
     /**
-     * @var  int|null  $expire  seconds until cache expiration
+     * @var int|null seconds until cache expiration
      */
     protected $expire;
 
     /**
      * Constructor
      *
-     * @param \Predis\Client  $client  predis client
-     * @param string          $key     storage key
-     * @param int|null        $expire  seconds until cache expiration
+     * @param \Predis\Client $client predis client
+     * @param string         $key    storage key
+     * @param int|null       $expire seconds until cache expiration
      */
     public function __construct(Client $client = null, $key = 'flysystem', $expire = null)
     {
-        $this->client = $client ?: new Client;
+        $this->client = $client ?: new Client();
         $this->key = $key;
         $this->expire = $expire;
     }
@@ -40,7 +40,7 @@ class Predis extends AbstractCache
      */
     public function load()
     {
-        if (($contents = $this->executeCommand('get', array($this->key))) !== null) {
+        if (($contents = $this->executeCommand('get', [$this->key])) !== null) {
             $this->setFromStorage($contents);
         }
     }
@@ -51,19 +51,20 @@ class Predis extends AbstractCache
     public function save()
     {
         $contents = $this->getForStorage();
-        $this->executeCommand('set', array($this->key, $contents));
+        $this->executeCommand('set', [$this->key, $contents]);
 
         if ($this->expire !== null) {
-            $this->executeCommand('expire', array($this->key, $this->expire));
+            $this->executeCommand('expire', [$this->key, $this->expire]);
         }
     }
 
     /**
      * Execute a Predis command
      *
-     * @param   string  $name
-     * @param   array   $arguments
-     * @return  mixed
+     * @param string $name
+     * @param array  $arguments
+     *
+     * @return string
      */
     protected function executeCommand($name, array $arguments)
     {

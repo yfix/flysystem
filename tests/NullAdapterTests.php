@@ -1,18 +1,22 @@
 <?php
 
 use League\Flysystem\Adapter\NullAdapter;
+use League\Flysystem\Config;
 use League\Flysystem\Filesystem;
 
 class NullAdapterTest extends PHPUnit_Framework_TestCase
 {
+    /**
+     * @return Filesystem
+     */
     protected function getFilesystem()
     {
-        return new Filesystem(new NullAdapter);
+        return new Filesystem(new NullAdapter());
     }
 
     protected function getAdapter()
     {
-        return new NullAdapter;
+        return new NullAdapter();
     }
 
     public function testWrite()
@@ -46,20 +50,20 @@ class NullAdapterTest extends PHPUnit_Framework_TestCase
 
     public function expectedFailsProvider()
     {
-        return array(
-            array('read'),
-            array('update'),
-            array('read'),
-            array('rename'),
-            array('delete'),
-            array('listContents', array()),
-            array('getMetadata'),
-            array('getSize'),
-            array('getMimetype'),
-            array('getTimestamp'),
-            array('getVisibility'),
-            array('deleteDir'),
-        );
+        return [
+            ['read'],
+            ['update'],
+            ['read'],
+            ['rename'],
+            ['delete'],
+            ['listContents', []],
+            ['getMetadata'],
+            ['getSize'],
+            ['getMimetype'],
+            ['getTimestamp'],
+            ['getVisibility'],
+            ['deleteDir'],
+        ];
     }
 
     /**
@@ -67,16 +71,16 @@ class NullAdapterTest extends PHPUnit_Framework_TestCase
      */
     public function testExpectedFails($method, $result = false)
     {
-        $adapter = new NullAdapter;
-        $this->assertEquals($result, $adapter->{$method}('one', 'two', 'three'));
+        $adapter = new NullAdapter();
+        $this->assertEquals($result, $adapter->{$method}('one', 'two', new Config()));
     }
 
     public function expectedArrayResultProvider()
     {
-        return array(
-            array('write'),
-            array('setVisibility'),
-        );
+        return [
+            ['write'],
+            ['setVisibility'],
+        ];
     }
 
     /**
@@ -84,13 +88,13 @@ class NullAdapterTest extends PHPUnit_Framework_TestCase
      */
     public function testArrayResult($method)
     {
-        $adapter = new NullAdapter;
-        $this->assertInternalType('array', $adapter->{$method}('one', tmpfile(), array('visibility' => 'public')));
+        $adapter = new NullAdapter();
+        $this->assertInternalType('array', $adapter->{$method}('one', tmpfile(), new Config(['visibility' => 'public'])));
     }
 
     public function testArrayResultForCreateDir()
     {
-        $adapter = new NullAdapter;
-        $this->assertInternalType('array', $adapter->createDir('one', array('visibility' => 'public')));
+        $adapter = new NullAdapter();
+        $this->assertInternalType('array', $adapter->createDir('one', new Config(['visibility' => 'public'])));
     }
 }
